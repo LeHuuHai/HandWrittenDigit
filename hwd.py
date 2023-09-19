@@ -1,7 +1,5 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn import linear_model
-from sklearn.metrics import accuracy_score
 from mnist import MNIST
 
 
@@ -38,16 +36,74 @@ def extract_data(X, y, cls):
     return x_res, y_res
 
 X_train, y_train = extract_data(Xtrain_all, ytrain_all, cls)
+y_train = y_train.T
 X_test, y_test = extract_data(Xtest_all, ytest_all, cls)
+y_test = y_test.T
 
-logreg = linear_model.LogisticRegression()
-logreg.fit(X_train, y_train[0])
+def sigmoid(s):
+    return 1/(1+np.exp(-s))
 
-y_pred = logreg.predict(X_test)
-print('accuracy_score: %.2f%%' % (100*accuracy_score(y_test[0], y_pred.tolist())))
-weights = logreg.coef_[0]
+def predict(weight):
+    '''
+    :param weight: 784*1
+    :param X_test: 2115*728
+    :return: y_predict: 2115*1
+    '''
+    sig = sigmoid(X_test.dot(weight))
+    y_predict = np.round(sig)
+    return y_predict
 
-f = open('model_train','wt')
-for w in weights:
-    f.write(str(w)+' ')
-f.close()
+def update_weight(w_old, eta, id):
+    '''
+    :param w_old: 784*1
+    :param eta: learning rate(float)
+    :param id: id of data point
+    :return: new weight: 784*1
+    '''
+    xi = X_train[id,:]
+    yi = y_train[id]
+    zi = sigmoid(xi.dot(w_old))
+    grad = (zi - yi) * xi.T
+    grad = np.reshape(grad, (-1,1))
+    w_new = w_old - eta*grad
+    return w_new
+
+def train(w_init, eta, iters):
+    '''
+    :param w_init: initial value: 784*1
+    :param eta: learning rate(float)
+    :param iters: loops
+    :return: list of weight
+    '''
+    n = X_train.shape[0]
+    W = [w_init]
+    for it in range(iters):
+        mix_data = np.random.permutation(n)
+        for i in range(n):
+            w_new = update_weight(W[-1], eta, mix_data[i])
+            W.append(w_new)
+    return W
+
+def accuracy_score(y_predict, y_test):
+    n = y_test.shape[0]
+    tmp = y_predict - y_test
+    true_counts = len(np.where(tmp==0)[0])
+    return true_counts/n
+
+def main():
+    w_init = np.array([[0]*784]).reshape(-1,1)
+    W = train(w_init, 0.0001, 100)
+    y_pred = predict(W[-1])
+    print('accuracy score: %.2f %%' % (100*accuracy_score(y_pred, y_test)))
+
+    id = np.random.randint(0, y_test.shape[0]+1)
+    plt.imshow(X_test[id,:].reshape(28,28))
+    plt.gray()
+    plt.title(str(y_pred[id]))
+    plt.show()
+
+
+main()
+
+
+
